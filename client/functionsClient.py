@@ -35,8 +35,10 @@ def mainMenu():
             sendMessage()
         elif option == 6:
             sys.exit()
+        else:
+            raise ValueError(f'Valor inválido')
     except Exception as e:
-        print(f"Ocorreu um erro, tente novamente: {e}")
+        print(f'Ocorreu um erro, tente novamente: {e}')
         os.system('pause')
         mainMenu()
             
@@ -44,23 +46,22 @@ def keyGeneration(probeName):
     try:   
         if not os.path.exists('client/data/probes'):
             os.makedirs('client/data/probes')
-        
         probePath = os.path.join('client/data/probes', probeName.lower())
         os.makedirs(probePath, exist_ok = True) 
-        
         key = RSA.generate(2048)
-    
+        
         privateKey = key.export_key()
         with open(os.path.join(probePath, f'{probeName.lower()}.private.pem'), 'wb') as file:
             file.write(privateKey)
-    
+
         publicKey = key.public_key().export_key()
         with open(os.path.join(probePath, f'{probeName.lower()}.public.pem'), 'wb') as file:
             file.write(publicKey)
         print(f'A sonda {probeName} foi cadastrada e suas chaves foram geradas com sucesso')
     except Exception as e:
         print(f"Ocorreu um erro ao gerar as chaves para a sonda {probeName}: {e}")
-
+        os.system('pause')
+        mainMenu()
 
 def probeRegister():
     os.system('cls')
@@ -94,17 +95,19 @@ def sendProbeKey():
                     'publicKey': publicKey.decode()
                 }
                 messageReady = json.dumps(message)
-                clientSocketB.send(messageReady.encode('utf-8'))                
+                clientSocketB.send(messageReady.encode('utf-8')) 
+                response = clientSocketB.recv(4096).decode('utf-8')
+                print('Resposta do servidor: ', response)               
                 os.system('pause')
                 mainMenu()
             except Exception as e:
                 print(f'Ocorreu um erro ao conectar com o servidor, tente novamente: {e}')  
                 os.system('pause')
-                sendProbeKey()
+                mainMenu()
     except Exception as e:
         print(f'Ocorreu um erro ao buscar a chave da Sonda {probeName}, tente novamente: {e}')
         os.system('pause')
-        sendProbeKey()
+        mainMenu()
 
 def createFile():
     os.system('cls')
@@ -199,15 +202,15 @@ def manageData():
             except:
                 print("Por favor, digite um número válido.")
                 os.system('pause')
-                manageData()
+                mainMenu()
         else:
             print(f"Não há dados disponíveis para gerar assinatura na sonda {probeName}.")
             os.system('pause')
-            manageData()            
+            mainMenu()            
     else:
         print(f"A sonda {probeName} não existe ou não possui dados disponíveis para criptografar.")
         os.system('pause')
-        manageData()
+        mainMenu()
 
 def signFile(privateKeyPath, filePath, signaturePath, fileName):
     try:
@@ -230,41 +233,44 @@ def sendMessage():
     os.system('cls')
     logo()
     listProbes()
-    probeName = input('Digite o nome da sonda que deseja enviar a chave: ')
-    chosenFile = readyFiles(probeName)  
-    if chosenFile:
-        try:
-            clientSocketB = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            clientSocketB.connect((HOST_B, PORT_B))
+    try:
+        probeName = input('Digite o nome da sonda que deseja enviar a chave: ')
+        chosenFile = readyFiles(probeName)  
+        if chosenFile:
+            try:
+                clientSocketB = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                clientSocketB.connect((HOST_B, PORT_B))
 
-            probePath = f'client/data/probes/{probeName}'
-            txtFilePath = os.path.join(probePath, chosenFile)
-            signatureFilePath = os.path.join(probePath, chosenFile.replace('.txt', 'assinatura'))
+                probePath = f'client/data/probes/{probeName}'
+                txtFilePath = os.path.join(probePath, chosenFile)
+                signatureFilePath = os.path.join(probePath, chosenFile.replace('.txt', 'assinatura'))
 
-            with open(txtFilePath, 'rb') as txtFile:
-                cryptoData = binascii.hexlify(txtFile.read()).decode('utf-8')
-            with open(signatureFilePath, 'rb') as sigFile:
-                sigData = binascii.hexlify(sigFile.read()).decode('utf-8')
+                with open(txtFilePath, 'rb') as txtFile:
+                    cryptoData = binascii.hexlify(txtFile.read()).decode('utf-8')
+                with open(signatureFilePath, 'rb') as sigFile:
+                    sigData = binascii.hexlify(sigFile.read()).decode('utf-8')
 
-            message = {
-                'action': 'sendData',
-                'probeName': probeName,
-                'cryptoData': cryptoData,
-                'sigData': sigData
-            }
-            clientSocketB.send(json.dumps(message).encode('utf-8'))
-            response = clientSocketB.recv(4096).decode('utf-8')
-            print('Resposta do servidor: ', response)
-            os.system('pause')
-            mainMenu()
-        except Exception as e:
-            print(f'Ocorreu um erro ao conectar com o servidor, tente novamente: {e}')  
-            os.system('pause')
-            sendMessage() 
-    else: 
-        print('Nome da sonda inválido!')
+                message = {
+                    'action': 'sendData',
+                    'probeName': probeName,
+                    'cryptoData': cryptoData,
+                    'sigData': sigData
+                }
+                clientSocketB.send(json.dumps(message).encode('utf-8'))
+                response = clientSocketB.recv(4096).decode('utf-8')
+                print('Resposta do servidor: ', response)
+                os.system('pause')
+                mainMenu()
+            except Exception as e:
+                print(f'Ocorreu um erro ao conectar com o servidor, tente novamente: {e}')  
+                os.system('pause')
+                sendMessage() 
+        else:
+            raise Exception('Sonda não localizada')
+    except Exception as e: 
+        print(f'Ocorreu um erro, tente novamente: {e}')
         os.system('pause')
-        sendMessage()    
+        sendMessage()
 
 def readyFiles(probeName):
     try:
@@ -272,17 +278,16 @@ def readyFiles(probeName):
         readyFiles = []
         if os.path.exists(probePath):
             dataFiles = [file for file in os.listdir(probePath) if file.lower().endswith('.txt') and os.path.isfile(os.path.join(probePath, file))]
-
             for dataFile in dataFiles:
                 signatureFile = dataFile.replace('.txt', 'assinatura')
                 if os.path.isfile(os.path.join(probePath, signatureFile)):
                     readyFiles.append(dataFile)
             if readyFiles:
                 print(f'Arquivos prontos da sonda {probeName}:')
-                for i, file in enumerate(dataFiles, start=1):
+                for i, file in enumerate(readyFiles, start=1):
                     print(f'{i}. {file}')
-                chosenNumber = int(input('Digite o número correspondente ao arquivo que deseja gerar assinatura: '))
                 try:
+                    chosenNumber = int(input('Digite o número correspondente ao arquivo que deseja gerar assinatura: '))
                     chosenFile = readyFiles[chosenNumber - 1]
                     confirm = input(f"Você confirma a escolha do arquivo '{chosenFile}'? (s/n): ")
                     if confirm.lower() != 's':
@@ -290,14 +295,21 @@ def readyFiles(probeName):
                         os.system('pause')
                         sendMessage()
                     else:
-                        print(f'Fazendo envio do arquivo: {chosenFile}')  
+                        print(f'Fazendo envio do arquivo: {chosenFile}')
                         return chosenFile
-                except:
+                except ValueError:
                     print("Por favor, digite um número válido.")
                     os.system('pause')
                     sendMessage()
+                except IndexError:
+                    print("Por favor, escolha um número dentro da lista.")
+                    os.system('pause')
+                    sendMessage()
+            else:
+                raise Exception(f'Não há arquivos prontos para a sonda {probeName}.')
+        else:
+            raise Exception(f'O caminho da sonda {probeName} não existe.')
     except Exception as e:
         print(f'Ocorreu um erro ao buscar os arquivos prontos: {e}')
         os.system('pause')
         sendMessage()
-    

@@ -12,15 +12,15 @@ def logo():
     print(fileLogo)
     Connection()
 
-def receiveMessages(client_socket):
+def receiveMessages(clientSocket):
     while True:
-        data = client_socket.recv(4096)
+        data = clientSocket.recv(4096)
         if not data:
-            client_socket.close()
+            clientSocket.close()
             print('Conexão encerrada com a sonda.')
             break
-        probeKeyReceive(data)
-        dataReceive(data, client_socket)
+        probeKeyReceive(data, clientSocket)
+        dataReceive(data, clientSocket)
         
 
 def fileOpen(file):
@@ -30,7 +30,7 @@ def fileOpen(file):
     publicKey = RSA.import_key(keyData)
     return publicKey
 
-def dataReceive(data, client_socket):
+def dataReceive(data, clientSocket):
     try:
         message = json.loads(data.decode('utf-8'))
         action = message.get('action')
@@ -50,11 +50,11 @@ def dataReceive(data, client_socket):
             except:
                 print('Essa assinatura é inválida')
                 validacao = 'Essa assinatura é inválida'
-            client_socket.send(validacao.encode('utf-8'))
+            clientSocket.send(validacao.encode('utf-8'))
     except Exception as e:
         print(f'Ocorreu um erro ao processar a mensagem recebida: {e}')
 
-def probeKeyReceive(data):
+def probeKeyReceive(data, clientSocket):
     message = json.loads(data.decode('utf-8'))
     action = message.get('action')
     if action == 'probeKey':
@@ -67,9 +67,13 @@ def probeKeyReceive(data):
             with open(f'server/keys/{probeName.lower()}.public.pem', 'wb') as file:
                 file.write(publicKey.encode())
                 print(f'Chave Pública da sonda {probeName} recebida e salva com sucesso!')
+                validacao = f'A chave da sonda {probeName} foi recebida e salva com sucesso'
+                clientSocket.send(validacao.encode('utf-8'))
                 print('Aguardando conexão da Sonda...')
         except Exception as e:
             print(f'Ocorreu um erro ao receber os dados: {e}')
+            validacao = f'Ocorreu um erro ao salvar a chave da sonda {probeName}'
+            clientSocket.send(validacao.encode('utf-8'))
             print('Aguardando conexão da Sonda...')
 
 def Connection():
